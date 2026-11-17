@@ -23,7 +23,10 @@
     if (node.tagName === 'A') { node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener'); }
   });
   const md = (text) => h('div', { class: 'md', html: DOMPurify.sanitize(marked.parse(text || '')) });
-  const fileUrl = (p) => 'file://' + encodeURI(p.replace(/\\/g, '/')).replace(/#/g, '%23');
+  const fileUrl = (p) => {
+    const slashed = p.replace(/\\/g, '/');
+    return 'file://' + (/^[A-Za-z]:/.test(slashed) ? '/' : '') + encodeURI(slashed).replace(/#/g, '%23');
+  };
 
   function toast(text, bad = false) {
     const t = h('div', { class: `toast${bad ? ' bad' : ''}` }, text);

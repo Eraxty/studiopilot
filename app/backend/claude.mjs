@@ -1,7 +1,10 @@
 // Drives one Claude Code process per chat over its stream-json protocol:
 // user messages in on stdin, events out on stdout, and permission prompts /
 // AskUserQuestion delivered to us as control requests (--permission-prompt-tool stdio).
-import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnCli } from './proc.mjs';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 
@@ -25,9 +28,14 @@ export class ClaudeSession extends EventEmitter {
     if (o.effort) args.push('--effort', o.effort);
     if (o.mode) args.push('--permission-mode', o.mode);
     if (o.resume) args.push('--resume', o.resume);
-    if (o.systemPrompt) args.push('--append-system-prompt', o.systemPrompt);
+    if (o.systemPrompt) {
+      // a file, not an argument: Windows .cmd shims can't carry arbitrary text safely
+      const file = path.join(os.tmpdir(), `studiopilot-prompt-${process.pid}-${Math.random().toString(36).slice(2)}.txt`);
+      fs.writeFileSync(file, o.systemPrompt);
+      args.push('--append-system-prompt-file', file);
+    }
     if (o.mcpConfig) args.push('--mcp-config', o.mcpConfig);
-    this.proc = spawn(o.bin || 'claude', args, {
+    this.proc = spawnCli(o.bin || 'claude', args, {
       cwd: o.cwd,
       env: { ...process.env, ...o.env },
       stdio: ['pipe', 'pipe', 'pipe'],

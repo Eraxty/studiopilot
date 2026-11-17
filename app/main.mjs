@@ -5,11 +5,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from './backend/store.mjs';
 import { Chats, CLAUDE_MODELS } from './backend/chats.mjs';
 import * as svc from './backend/services.mjs';
+import { adoptLoginShellPath, resolveBin } from './backend/proc.mjs';
+
+adoptLoginShellPath();
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // In a packaged build the bridge, plugin and Blender adapter ship as extra resources.
@@ -21,10 +23,8 @@ app.setName('StudioPilot');
 let win = null;
 
 function nodeBinary() {
-  try {
-    const p = execFileSync(process.platform === 'win32' ? 'where' : 'which', ['node'], { encoding: 'utf8' }).split(/\r?\n/)[0].trim();
-    if (p) return { command: p, env: {} };
-  } catch {}
+  const p = resolveBin('node');
+  if (p && !/\.(cmd|bat)$/i.test(p)) return { command: p, env: {} };
   return { command: process.execPath, env: { ELECTRON_RUN_AS_NODE: '1' } }; // Electron's own Node
 }
 

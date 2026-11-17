@@ -11,11 +11,16 @@ const ADAPTER = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'b
 
 function findBlender() {
   if (process.env.STUDIOPILOT_BLENDER_PATH) return process.env.STUDIOPILOT_BLENDER_PATH;
-  const candidates = process.platform === 'win32'
-    ? [] // rely on PATH or STUDIOPILOT_BLENDER_PATH
-    : process.platform === 'darwin'
-      ? ['/Applications/Blender.app/Contents/MacOS/Blender']
-      : [];
+  let candidates = [];
+  if (process.platform === 'darwin') {
+    candidates = ['/Applications/Blender.app/Contents/MacOS/Blender'];
+  } else if (process.platform === 'win32') {
+    // default installer location: C:\Program Files\Blender Foundation\Blender 4.x\blender.exe (newest first)
+    const base = path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Blender Foundation');
+    try {
+      candidates = fs.readdirSync(base).sort().reverse().map((d) => path.join(base, d, 'blender.exe'));
+    } catch {}
+  }
   for (const c of candidates) if (fs.existsSync(c)) return c;
   try {
     const cmd = process.platform === 'win32' ? 'where' : 'which';

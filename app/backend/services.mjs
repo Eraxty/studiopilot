@@ -5,15 +5,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { resolveBin, execCli, spawnCli } from './proc.mjs';
 
 const run = promisify(execFile);
 export const HUB = `http://127.0.0.1:${process.env.STUDIOPILOT_PORT || 8766}`;
 
 export async function which(cmd) {
-  try {
-    const { stdout } = await run(process.platform === 'win32' ? 'where' : 'which', [cmd]);
-    return stdout.split(/\r?\n/)[0].trim() || null;
-  } catch { return null; }
+  return resolveBin(cmd);
 }
 
 // ---------------------------------------------------------------- hub
@@ -43,6 +41,7 @@ export async function ensureHub(serverPath, nodeBin) {
   if (await hubHealth()) return true;
   const child = spawn(nodeBin.command, [serverPath, '--hub-only'], {
     detached: true,
+    windowsHide: true,
     stdio: 'ignore',
     env: { ...process.env, ...nodeBin.env },
   });
@@ -62,7 +61,7 @@ export async function setupStatus({ pluginTargets, blenderPath }) {
   ]);
   const version = async (bin) => {
     if (!bin) return null;
-    try { return (await run(bin, ['--version'], { timeout: 8000 })).stdout.trim().split('\n')[0]; } catch { return null; }
+    try { return (await execCli(bin, ['--version'], { timeout: 8000 })).stdout.trim().split('\n')[0]; } catch { return null; }
   };
   const pluginFile = pluginTargets.map((d) => path.join(d, 'StudioPilot.lua')).find((f) => fs.existsSync(f)) || null;
   const builtIn = hub?.builtInMcp || [];
@@ -114,7 +113,7 @@ export class Rojo {
     if (!fs.existsSync(path.join(dir, 'default.project.json'))) throw new Error(`No default.project.json in ${dir}. Run "rojo init" there first.`);
     this.dir = dir;
     this.log = [];
-    this.proc = spawn(bin, ['serve'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
+    this.proc = spawnCli(bin, ['serve'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
     const push = (d) => {
       for (const line of String(d).split('\n').filter(Boolean)) { this.log.push(line); this.onLog?.(line); }
       this.log = this.log.slice(-500);
@@ -153,7 +152,7 @@ export async function installSkillsFromGit(url) {
   if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?\/?$/.test(url)) throw new Error('Use a https://github.com/<owner>/<repo> URL');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-skill-'));
   try {
-    await run('git', ['clone', '--depth', '1', url, tmp], { timeout: 120_000 });
+    await execCli('git', ['clone', '--depth', '1', url, tmp], { timeout: 120_000 });
     const found = [];
     if (fs.existsSync(path.join(tmp, 'SKILL.md'))) found.push({ src: tmp, name: path.basename(url).replace(/\.git$/, '') });
     for (const base of ['skills', '.']) {
@@ -188,7 +187,7 @@ export function removeSkill(name) {
 export async function listMcpServers() {
   if (!(await which('claude'))) return [];
   try {
-    const { stdout } = await run('claude', ['mcp', 'list'], { timeout: 60_000 });
+    const { stdout } = await execCli('claude', ['mcp', 'list'], { timeout: 60_000 });
     return stdout.split('\n').map((l) => l.match(/^([\w.-]+):\s+(.+?)\s+-\s+(.+)$/)).filter(Boolean)
       .map((m) => ({ name: m[1], command: m[2], status: m[3].replace(/[✔✗⚠]\s*/u, '') }));
   } catch { return []; }
@@ -197,11 +196,11 @@ export async function listMcpServers() {
 export async function addMcpServer({ name, command, args = [], url }) {
   if (!/^[\w.-]+$/.test(name)) throw new Error('Names can only use letters, numbers, dots, dashes and underscores');
   const cmd = url ? ['mcp', 'add', '--scope', 'user', '--transport', 'http', name, url] : ['mcp', 'add', '--scope', 'user', name, '--', command, ...args];
-  await run('claude', cmd, { timeout: 30_000 });
+  await execCli('claude', cmd, { timeout: 30_000 });
 }
 
 export async function removeMcpServer(name) {
-  await run('claude', ['mcp', 'remove', '--scope', 'user', name], { timeout: 30_000 });
+  await execCli('claude', ['mcp', 'remove', '--scope', 'user', name], { timeout: 30_000 });
 }
 
 // ---------------------------------------------------------------- Roblox Open Cloud config

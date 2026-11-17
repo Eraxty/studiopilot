@@ -1,6 +1,6 @@
 // Drives Codex with `codex exec --json`, one process per turn, resuming the
 // same thread each time. Events are normalized to the shapes ClaudeSession emits.
-import { spawn } from 'node:child_process';
+import { spawnCli } from './proc.mjs';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -46,13 +46,14 @@ export class CodexSession extends EventEmitter {
       args.push('-c', `mcp_servers.studiopilot.env={STUDIOPILOT_APP_URL="${o.extraConfig.appUrl}",STUDIOPILOT_CHAT_ID="${o.extraConfig.chatId}"}`);
     }
     for (const img of images) args.push('-i', img);
-    args.push('--', text);
+    args.push('-'); // prompt goes over stdin
 
     this.busy = true;
     this.first = false;
     this.emit('event', { kind: 'message_start' });
-    const proc = spawn(o.bin || 'codex', args, { cwd: o.cwd, env: { ...process.env, ...o.env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawnCli(o.bin || 'codex', args, { cwd: o.cwd, env: { ...process.env, ...o.env }, stdio: ['pipe', 'pipe', 'pipe'] });
     this.proc = proc;
+    proc.stdin.end(text);
     let buf = '';
     let err = '';
     let blockIndex = 0;
