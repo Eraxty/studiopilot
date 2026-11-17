@@ -1,14 +1,15 @@
 // Exercises the Blender tools through the bridge with headless Blender and a
 // fake Studio plugin that answers export_parts. No Roblox needed.
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 const PORT = 18766, BPORT = 18768;
 const env = { ...process.env, STUDIOPILOT_PORT: String(PORT), STUDIOPILOT_BLENDER_PORT: String(BPORT), STUDIOPILOT_STUDIO_MCP_PORT: '18470', STUDIOPILOT_BLENDER_CHECKPOINTS: fs.mkdtempSync(path.join(os.tmpdir(), 'sp-ckpt-')) };
-const blender = spawn('blender', ['-b', '--factory-startup', '--python', new URL('../blender/studiopilot_adapter.py', import.meta.url).pathname], { env, stdio: 'ignore' });
-const hub = spawn(process.execPath, [new URL('../bridge/server.mjs', import.meta.url).pathname, '--hub-only'], { env, stdio: 'inherit' });
+const blender = spawn('blender', ['-b', '--factory-startup', '--python', fileURLToPath(new URL('../blender/studiopilot_adapter.py', import.meta.url))], { env, stdio: 'ignore' });
+const hub = spawn(process.execPath, [fileURLToPath(new URL('../bridge/server.mjs', import.meta.url)), '--hub-only'], { env, stdio: 'inherit' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let alive = true; let saved = null;
 (async () => { // fake plugin

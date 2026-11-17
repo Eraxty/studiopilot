@@ -1,11 +1,12 @@
 // Fake Roblox Studio connecting to the bridge's built-in-MCP host, checking the
 // roblox_* tools get listed, called (studio_id filled in) and announced.
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 const PORT = 18766, MCP = 18469;
 const env = { ...process.env, STUDIOPILOT_PORT: String(PORT), STUDIOPILOT_STUDIO_MCP_PORT: String(MCP) };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const bridge = spawn(process.execPath, [new URL('../bridge/server.mjs', import.meta.url).pathname], { env, stdio: ['pipe', 'pipe', 'inherit'] });
+const bridge = spawn(process.execPath, [fileURLToPath(new URL('../bridge/server.mjs', import.meta.url))], { env, stdio: ['pipe', 'pipe', 'inherit'] });
 let buf = ''; const msgs = []; const waiting = new Map(); let nextId = 1;
 bridge.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const m = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1); msgs.push(m); waiting.get(m.id)?.(m); } });
 const rpc = (method, params) => new Promise((r) => { const id = nextId++; waiting.set(id, r); bridge.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); });

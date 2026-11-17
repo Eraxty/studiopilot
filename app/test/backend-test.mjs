@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { Store } from '../backend/store.mjs';
 import { Chats } from '../backend/chats.mjs';
@@ -11,7 +12,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-app-test-'));
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-app-work-'));
 const store = new Store(dir);
 store.saveProjects([{ id: 'p1', name: 'Test', dir: work }]);
-const chats = new Chats({ store, bridgeServer: new URL('../../bridge/server.mjs', import.meta.url).pathname, appUrl: 'http://127.0.0.1:9', nodeBin: { command: 'node', env: {} } });
+const chats = new Chats({ store, bridgeServer: fileURLToPath(new URL('../../bridge/server.mjs', import.meta.url)), appUrl: 'http://127.0.0.1:9', nodeBin: { command: 'node', env: {} } });
 const waitFor = (pred, ms = 150000) => new Promise((res, rej) => {
   const t = setTimeout(() => { chats.off('chat', on); rej(new Error('timeout')); }, ms);
   const on = (c) => { const v = pred(c); if (v) { clearTimeout(t); chats.off('chat', on); res(v); } };
