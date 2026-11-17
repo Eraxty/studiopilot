@@ -1,13 +1,13 @@
 {
   "name": "studiopilot-desktop",
   "productName": "StudioPilot",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Desktop chat app for building Roblox games with Claude Code or Codex through StudioPilot.",
   "main": "main.mjs",
   "type": "module",
   "scripts": {
     "start": "electron .",
-    "dist": "npx electron-builder@26.18.0 --linux AppImage",
+    "dist": "npx electron-builder@26.18.0",
     "test": "node test/backend-test.mjs"
   },
   "license": "MIT",
@@ -35,7 +35,8 @@
       "ui/**",
       "package.json",
       "node_modules/marked/**",
-      "node_modules/dompurify/**"
+      "node_modules/dompurify/**",
+      "!build/**"
     ],
     "extraResources": [
       {
@@ -72,22 +73,55 @@
         "AppImage"
       ],
       "category": "Development",
-      "icon": "ui/icon.png",
+      "icon": "ui/icon-1024.png",
       "executableName": "studiopilot",
       "syncDesktopName": true
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "icon": "ui/icon.png"
+      "icon": "ui/icon-1024.png",
+      "signAndEditExecutable": true
     },
     "mac": {
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "category": "public.app-category.developer-tools",
-      "icon": "ui/icon.png"
+      "icon": "ui/icon-1024.png",
+      "identity": null,
+      "artifactName": "StudioPilot-${version}-mac-${arch}.${ext}"
+    },
+    "afterPack": "build/after-pack.cjs",
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "StudioPilot-Setup-${version}.${ext}"
     }
   },
   "desktopName": "studiopilot.desktop",
