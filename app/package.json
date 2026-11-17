@@ -1,0 +1,95 @@
+{
+  "name": "studiopilot-desktop",
+  "productName": "StudioPilot",
+  "version": "0.3.0",
+  "description": "Desktop chat app for building Roblox games with Claude Code or Codex through StudioPilot.",
+  "main": "main.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "dist": "npx electron-builder@26.18.0 --linux AppImage",
+    "test": "node test/backend-test.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "dompurify": "^3.2.6",
+    "marked": "^15.0.12"
+  },
+  "devDependencies": {
+    "electron": "^38.4.0"
+  },
+  "allowScripts": {
+    "electron@38.4.0": true
+  },
+  "build": {
+    "appId": "dev.studiopilot.desktop",
+    "productName": "StudioPilot",
+    "electronVersion": "38.4.0",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.mjs",
+      "preload.cjs",
+      "backend/**",
+      "ui/**",
+      "package.json",
+      "node_modules/marked/**",
+      "node_modules/dompurify/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../bridge",
+        "to": "studiopilot/bridge"
+      },
+      {
+        "from": "../plugin",
+        "to": "studiopilot/plugin"
+      },
+      {
+        "from": "../blender",
+        "to": "studiopilot/blender",
+        "filter": [
+          "*.py"
+        ]
+      },
+      {
+        "from": "../agents",
+        "to": "studiopilot/agents"
+      },
+      {
+        "from": "../scripts",
+        "to": "studiopilot/scripts",
+        "filter": [
+          "plugin-paths.mjs",
+          "install-plugin.mjs",
+          "setup.mjs"
+        ]
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development",
+      "icon": "ui/icon.png",
+      "executableName": "studiopilot",
+      "syncDesktopName": true
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "ui/icon.png"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "ui/icon.png"
+    }
+  },
+  "desktopName": "studiopilot.desktop",
+  "author": "StudioPilot"
+}
