@@ -6,8 +6,17 @@
 -- and POSTs results to /result. It loads in every DataModel: the editor
 -- ("edit") and, during a playtest, the server and client ("server"/"client").
 
-local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
+
+-- Only the editor DataModel runs StudioPilot. Studio also loads plugins into
+-- playtest servers and clients; doing anything there (even reading plugin
+-- settings) crashed Studio on the next Play under Wine. Playtest commands go
+-- through Studio's built-in MCP instead.
+if not RunService:IsEdit() then
+	return
+end
+
+local HttpService = game:GetService("HttpService")
 local LogService = game:GetService("LogService")
 
 -- Editor-only services are fetched on first use, never at load: touching them
@@ -50,20 +59,10 @@ end
 local CONTEXT = detectContext()
 
 local function placeName(): string
-	-- In edit, game.Name is the file/place name. Playtest DataModels get names
-	-- like "Server"/"Client", so remember the editor's name in a setting.
-	if CONTEXT == "edit" then
-		local name = game.Name
-		if game.PlaceId ~= 0 then
-			name = name .. " #" .. tostring(game.PlaceId)
-		end
-		pcall(function()
-			plugin:SetSetting("StudioPilot_LastPlace_" .. tostring(game.PlaceId), name)
-		end)
-		return name
+	if game.PlaceId ~= 0 then
+		return game.Name .. " #" .. tostring(game.PlaceId)
 	end
-	local remembered = plugin:GetSetting("StudioPilot_LastPlace_" .. tostring(game.PlaceId))
-	return remembered or game.Name
+	return game.Name
 end
 
 ---------------------------------------------------------------- output capture
@@ -1246,6 +1245,8 @@ local function runCommand(cmd)
 	sendResult(execute(cmd))
 end
 
+local pauseUntil = 0
+
 -- Poll the bridge as `context`, handing each command to `handle`.
 local function pollLoop(context: string, handle: (any) -> ())
 	local backoff = 1
@@ -1265,7 +1266,18 @@ local function pollLoop(context: string, handle: (any) -> ())
 			backoff = 1
 			local data = HttpService:JSONDecode(res.Body)
 			for _, cmd in data.commands or {} do
-				task.spawn(handle, cmd)
+				if cmd.tool == "pause_polling" then
+					-- Handled inline so no new request starts before the pause:
+					-- an HTTP request in flight while Play builds the server
+					-- DataModel crashed Studio under Wine.
+					pauseUntil = os.clock() + math.clamp(tonumber(cmd.args and cmd.args.seconds) or 10, 1, 60)
+					sendResult({ id = cmd.id, ok = true, result = { pausedFor = cmd.args and cmd.args.seconds or 10 } })
+				else
+					task.spawn(handle, cmd)
+				end
+			end
+			while alive and os.clock() < pauseUntil do
+				task.wait(0.25)
 			end
 		else
 			setConnected(false)
@@ -1273,54 +1285,6 @@ local function pollLoop(context: string, handle: (any) -> ())
 			backoff = math.min(backoff * 2, 10)
 		end
 	end
-end
-
----------------------------------------------------------------- client relay
--- Roblox blocks HttpService in the playtest client, so the client plugin can't
--- reach the bridge. The server plugin polls on the client's behalf and passes
--- commands over a RemoteEvent.
-
-local RELAY_NAME = "StudioPilotRelay"
-local relayClientStarted = false
-
-local function startServerRelay()
-	local ReplicatedStorage = game:GetService("ReplicatedStorage")
-	local relay = Instance.new("RemoteEvent")
-	relay.Name = RELAY_NAME
-	relay.Archivable = false
-	relay.Parent = ReplicatedStorage
-
-	local clientPlayer: Player? = nil
-	relay.OnServerEvent:Connect(function(player, kind, payload)
-		if kind == "hello" then
-			clientPlayer = player
-			if not relayClientStarted then
-				relayClientStarted = true
-				task.spawn(pollLoop, "client", function(cmd)
-					if clientPlayer and clientPlayer.Parent then
-						relay:FireClient(clientPlayer, cmd)
-					else
-						sendResult({ id = cmd.id, ok = false, error = "No client player is in the game" })
-					end
-				end)
-			end
-		elseif kind == "result" and type(payload) == "table" then
-			sendResult(payload)
-		end
-	end)
-end
-
-local function startClientRelay()
-	local ReplicatedStorage = game:GetService("ReplicatedStorage")
-	local relay = ReplicatedStorage:WaitForChild(RELAY_NAME, 60)
-	if not relay then
-		warn("[StudioPilot] client relay not found; client commands unavailable")
-		return
-	end
-	relay.OnClientEvent:Connect(function(cmd)
-		relay:FireServer("result", execute(cmd))
-	end)
-	relay:FireServer("hello")
 end
 
 plugin.Unloading:Connect(function()
@@ -1358,35 +1322,9 @@ if CONTEXT == "edit" then
 	refresh()
 end
 
--- In playtest DataModels, stay idle until Studio has finished building the
--- game. Creating instances or making HTTP requests while Play is still setting
--- up the server crashed Studio (seen under Wine).
 local function startTransport()
-	if CONTEXT ~= "edit" then
-		-- Playtest commands go through Studio's built-in MCP. Polling from inside
-		-- a playtest crashed Studio when the test stopped, so it's opt-in only.
-		if plugin:GetSetting("StudioPilot_PlayTransport") ~= true then
-			return
-		end
-		-- let Play finish setting up the server and client first
-		local t = 0
-		while alive and not RunService:IsRunning() and t < 30 do
-			t += task.wait(0.5)
-		end
-		task.wait(3)
-		if not alive then
-			return
-		end
-	end
 	startLogCapture()
-	if CONTEXT == "client" then
-		startClientRelay()
-	else
-		if CONTEXT == "server" then
-			startServerRelay()
-		end
-		pollLoop(CONTEXT, runCommand)
-	end
+	pollLoop("edit", runCommand)
 end
 
 task.spawn(startTransport)

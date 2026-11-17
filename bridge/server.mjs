@@ -64,7 +64,7 @@ function dispatch(context, tool, args) {
   if (!studio) {
     const ctxHint = context === 'edit'
       ? 'Open Roblox Studio with the StudioPilot plugin enabled and make sure it shows Connected.'
-      : `No ${context} session is running. Start a playtest first (start_playtest).`;
+      : `Can't reach the playtest ${context}. Start a playtest first (start_playtest), and make sure Studio's built-in MCP is on (Assistant panel > ... > MCP Servers > "Enable Studio as MCP server"): playtest commands go through it.`;
     return Promise.reject(new Error(`No Studio connected for context "${context}". ${ctxHint}`));
   }
   const id = randomUUID();
@@ -222,6 +222,13 @@ async function callTool(name, args) {
   // Play/Stop: Studio's built-in tool does what F5 does. The plugin's fallback
   // (StudioTestService) crashed Studio under Wine every time we tried it.
   if ((name === 'start_playtest' || name === 'stop_playtest') && (args.mode || 'play') === 'play' && studioMcpTools().some((t) => t.name === 'roblox_start_stop_play')) {
+    // Quiet the plugin first: Studio crashed (under Wine) when Play started
+    // while the plugin had its long-poll request open.
+    const editStudio = pickStudio('edit');
+    if (editStudio) {
+      await dispatch('edit', 'pause_polling', { seconds: name === 'start_playtest' ? 12 : 8 }).catch(() => {});
+      await new Promise((r) => setTimeout(r, 1500));
+    }
     const res = await callStudioMcpTool('roblox_start_stop_play', { is_start: name === 'start_playtest' });
     const text = (res.content || []).map((c) => c.text || '').join(' ').trim();
     if (res.isError) throw new Error(text || 'Studio refused to change play mode');
