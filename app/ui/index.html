@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>StudioPilot</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="brand">
+        <img src="icon.png" alt="" class="brand-mark">
+        <span>StudioPilot</span>
+      </div>
+      <button id="new-chat" class="btn primary wide">New chat</button>
+      <nav id="projects"></nav>
+      <div class="sidebar-foot">
+        <div id="status-dots"></div>
+        <button id="open-settings" class="btn ghost wide">Settings</button>
+      </div>
+    </aside>
+
+    <main id="main">
+      <header id="chat-header">
+        <input id="chat-title" spellcheck="false" aria-label="Chat title">
+        <span id="engine-badge" class="badge"></span>
+        <div id="context-meter" title="Context used"><div id="context-fill"></div></div>
+        <button id="toggle-panel" class="btn ghost small" title="Changes, gallery and Studio">Panel</button>
+      </header>
+
+      <section id="messages" aria-live="polite"></section>
+
+      <footer id="composer">
+        <div id="attachments"></div>
+        <div id="slash-menu" class="popover hidden"></div>
+        <textarea id="input" rows="1" placeholder="Ask StudioPilot to build something…  (/ for commands, paste or drop images)"></textarea>
+        <div class="composer-bar">
+          <select id="engine-select" title="Engine">
+            <option value="claude">Claude</option>
+            <option value="codex">Codex (GPT)</option>
+          </select>
+          <select id="model-select" title="Model"></select>
+          <select id="effort-select" title="Effort">
+            <option value="low">Low effort</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="xhigh">Extra high</option>
+            <option value="max">Max</option>
+          </select>
+          <label class="toggle" title="Plan first: the agent proposes a plan before changing anything">
+            <input type="checkbox" id="plan-toggle"><span>Plan</span>
+          </label>
+          <button id="attach" class="btn ghost small" title="Attach image">Image</button>
+          <input type="file" id="file-input" accept="image/*" multiple hidden>
+          <span class="spacer"></span>
+          <span id="queue-note"></span>
+          <button id="send" class="btn primary">Send</button>
+        </div>
+      </footer>
+    </main>
+
+    <aside id="panel" class="hidden">
+      <div class="tabs" role="tablist">
+        <button data-tab="changes" class="tab active">Changes</button>
+        <button data-tab="gallery" class="tab">Gallery</button>
+        <button data-tab="studio" class="tab">Studio</button>
+      </div>
+      <div id="tab-changes" class="tab-body"></div>
+      <div id="tab-gallery" class="tab-body hidden"></div>
+      <div id="tab-studio" class="tab-body hidden"></div>
+    </aside>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+
+  <script src="../node_modules/marked/lib/marked.umd.js"></script>
+  <script src="../node_modules/dompurify/dist/purify.min.js"></script>
+  <script src="diff.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
