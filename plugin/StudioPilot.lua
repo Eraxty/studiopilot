@@ -8,10 +8,28 @@
 
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
-local ChangeHistoryService = game:GetService("ChangeHistoryService")
-local Selection = game:GetService("Selection")
 local LogService = game:GetService("LogService")
-local ScriptEditorService = game:GetService("ScriptEditorService")
+
+-- Editor-only services are fetched on first use, never at load: touching them
+-- while Studio is still building a playtest DataModel crashed Studio.
+local function lazyService(name: string)
+	local svc
+	return setmetatable({}, {
+		__index = function(_, key)
+			svc = svc or game:GetService(name)
+			local v = (svc :: any)[key]
+			if type(v) == "function" then
+				return function(_, ...)
+					return v(svc, ...)
+				end
+			end
+			return v
+		end,
+	})
+end
+local ChangeHistoryService = lazyService("ChangeHistoryService")
+local Selection = lazyService("Selection")
+local ScriptEditorService = lazyService("ScriptEditorService")
 
 local PORT = plugin:GetSetting("StudioPilot_Port") or 8766
 local BASE = "http://127.0.0.1:" .. tostring(PORT)
@@ -64,12 +82,14 @@ local function pushLog(message: string, messageType: Enum.MessageType)
 	end
 end
 
-pcall(function()
-	for _, entry in LogService:GetLogHistory() do
-		pushLog(entry.message, entry.messageType)
-	end
-end)
-LogService.MessageOut:Connect(pushLog)
+local function startLogCapture()
+	pcall(function()
+		for _, entry in LogService:GetLogHistory() do
+			pushLog(entry.message, entry.messageType)
+		end
+	end)
+	LogService.MessageOut:Connect(pushLog)
+end
 
 ---------------------------------------------------------------- paths
 
@@ -1304,11 +1324,9 @@ local function startClientRelay()
 end
 
 plugin.Unloading:Connect(function()
+	-- No HTTP here: a request while Studio tears the DataModel down crashed it.
+	-- The bridge notices the dropped long-poll and forgets this studio.
 	alive = false
-	pcall(post, "/disconnect", { place = placeName(), context = CONTEXT })
-	if relayClientStarted then
-		pcall(post, "/disconnect", { place = placeName(), context = "client" })
-	end
 end)
 
 ---------------------------------------------------------------- UI (editor only)
@@ -1340,11 +1358,35 @@ if CONTEXT == "edit" then
 	refresh()
 end
 
-if CONTEXT == "client" then
-	task.spawn(startClientRelay)
-else
-	if CONTEXT == "server" then
-		startServerRelay()
+-- In playtest DataModels, stay idle until Studio has finished building the
+-- game. Creating instances or making HTTP requests while Play is still setting
+-- up the server crashed Studio (seen under Wine).
+local function startTransport()
+	if CONTEXT ~= "edit" then
+		-- Playtest commands go through Studio's built-in MCP. Polling from inside
+		-- a playtest crashed Studio when the test stopped, so it's opt-in only.
+		if plugin:GetSetting("StudioPilot_PlayTransport") ~= true then
+			return
+		end
+		-- let Play finish setting up the server and client first
+		local t = 0
+		while alive and not RunService:IsRunning() and t < 30 do
+			t += task.wait(0.5)
+		end
+		task.wait(3)
+		if not alive then
+			return
+		end
 	end
-	task.spawn(pollLoop, CONTEXT, runCommand)
+	startLogCapture()
+	if CONTEXT == "client" then
+		startClientRelay()
+	else
+		if CONTEXT == "server" then
+			startServerRelay()
+		end
+		pollLoop(CONTEXT, runCommand)
+	end
 end
+
+task.spawn(startTransport)

@@ -15,6 +15,7 @@ import { uploadAsset } from './opencloud.mjs';
 import {
   startStudioMcpHost, studioMcpTools, isStudioMcpTool, callStudioMcpTool, studioMcpSessions, setPreferredStudioSession,
 } from './studio-mcp.mjs';
+import { PLAY_ROUTED, builtInAvailable, playCall, waitForPlay } from './play.mjs';
 
 const PORT = Number(process.env.STUDIOPILOT_PORT || 8766);
 const HOST = '127.0.0.1';
@@ -218,8 +219,22 @@ async function callTool(name, args) {
 
   if (def.local) return callLocalTool(name, args);
 
+  // Play/Stop: Studio's built-in tool does what F5 does. The plugin's fallback
+  // (StudioTestService) crashed Studio under Wine every time we tried it.
+  if ((name === 'start_playtest' || name === 'stop_playtest') && (args.mode || 'play') === 'play' && studioMcpTools().some((t) => t.name === 'roblox_start_stop_play')) {
+    const res = await callStudioMcpTool('roblox_start_stop_play', { is_start: name === 'start_playtest' });
+    const text = (res.content || []).map((c) => c.text || '').join(' ').trim();
+    if (res.isError) throw new Error(text || 'Studio refused to change play mode');
+    if (name === 'stop_playtest') return { stopped: true, via: 'studio', note: text };
+    const ready = await waitForPlay();
+    return ready.length
+      ? { started: 'play', via: 'studio', ready }
+      : { started: 'play', via: 'studio', ready, warning: 'Play started but Studio did not report the server and client within 45s.' };
+  }
+
   const context = def.context === 'dynamic' ? (args.context || 'edit') : (def.context || 'edit');
   const { context: _drop, ...pluginArgs } = args;
+  if (context !== 'edit' && PLAY_ROUTED.has(name) && builtInAvailable()) return playCall(name, pluginArgs, context);
   const result = await dispatch(context, def.pluginCommand || name, pluginArgs);
 
   // The playtest DataModels load the plugin a moment after Play starts; wait
