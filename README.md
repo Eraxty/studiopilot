@@ -58,6 +58,8 @@ There's a desktop app if you don't want to use a terminal.
 - every script edit as a diff, and "Edit & rewind" puts your scripts back if it messed up
 - a gallery with all the screenshots and renders
 - paste images straight in
+- keeps the Studio plugin up to date and tells you when a new version is out
+- one-click MCP presets (a folder or Obsidian vault, a browser, memory)
 
 ## Setup
 
