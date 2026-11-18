@@ -46,23 +46,38 @@ export async function ensureBlender({ background = false, file } = {}) {
     launching = (async () => {
       const exe = findBlender();
       if (!exe) throw new Error('Blender not found. Install Blender 4.2+ or set STUDIOPILOT_BLENDER_PATH.');
-      const args = [];
-      if (background) args.push('-b');
-      if (file) args.push(file);
-      args.push('--python', ADAPTER);
-      const child = spawn(exe, args, {
-        detached: true,
-        stdio: 'ignore',
-        env: { ...process.env, STUDIOPILOT_BLENDER_PORT: String(PORT) },
-      });
-      child.unref();
-      const deadline = Date.now() + 60_000;
-      while (Date.now() < deadline) {
-        const ok = await health();
-        if (ok) return { started: true, ...ok };
-        await new Promise((r) => setTimeout(r, 500));
+      const launch = (headless, waitMs) => {
+        const args = [];
+        if (headless) args.push('-b');
+        if (file) args.push(file);
+        args.push('--python', ADAPTER);
+        const child = spawn(exe, args, {
+          detached: true,
+          stdio: 'ignore',
+          env: { ...process.env, STUDIOPILOT_BLENDER_PORT: String(PORT) },
+        });
+        child.unref();
+        return (async () => {
+          const deadline = Date.now() + waitMs;
+          while (Date.now() < deadline) {
+            const ok = await health();
+            if (ok) return { started: true, headless, ...ok };
+            if (child.exitCode !== null) return null;
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          try { process.kill(child.pid); } catch {}
+          return null;
+        })();
+      };
+      // A Blender window is nicer to watch, but on some GPU setups it hangs
+      // before running scripts. Give it 25s, then fall back to headless.
+      if (!background) {
+        const gui = await launch(false, 25_000);
+        if (gui) return gui;
       }
-      throw new Error(`Blender started but the StudioPilot adapter did not answer on port ${PORT} within 60s.`);
+      const headless = await launch(true, 60_000);
+      if (headless) return { ...headless, note: background ? undefined : "Blender's window didn't start, so it is running headless. Use blender_render to see the scene." };
+      throw new Error(`Blender started but the StudioPilot adapter did not answer on port ${PORT}.`);
     })().finally(() => { launching = null; });
   }
   return launching;
