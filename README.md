@@ -117,7 +117,7 @@ Claude Code / Codex ──MCP──> bridge ──HTTP──> Studio plugin
 
 Blender models (and images) upload with your own Studio login through Studio's built-in MCP. No API key.
 
-Roblox makes you approve this once in Studio: **Assistant panel → `...` → MCP Permissions**. Allow asset uploads and add the folder `~/StudioPilot/exports` (on Windows: `%USERPROFILE%\StudioPilot\exports`). That's where StudioPilot puts its exports.
+Roblox makes you approve this once per game in Studio: **Assistant panel → `...` → MCP Permissions → Open Cloud upload directories → Add directory**, then pick `Documents/StudioPilot/exports`. That's where StudioPilot puts its exports. On Linux, Vinegar's sandbox only sees Documents and Pictures, so Studio shows the folder as `Z:\home\<you>\Documents\StudioPilot\exports`. The game has to be saved to Roblox first; Studio greys the setting out for unsaved places.
 
 If you'd rather not use Studio's MCP, an Open Cloud API key with **Assets: Read & Write** in `~/.config/studiopilot/config.json` works as a fallback:
 

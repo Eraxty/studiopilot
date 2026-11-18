@@ -635,7 +635,7 @@
     const user = h('input', { value: cfg.creator?.userId || '', placeholder: 'Your Roblox user id' });
     const group = h('input', { value: cfg.creator?.groupId || '', placeholder: 'Or a group id' });
     return [
-      h('p', { class: 'help', style: 'color:var(--muted)' }, 'Blender models and images upload with your Studio login, no key needed. Once, in Studio: Assistant panel → … → MCP Permissions → allow asset uploads and approve the folder ~/StudioPilot/exports. An Open Cloud API key below is only a fallback for when Studio\'s built-in MCP is off.'),
+      h('p', { class: 'help', style: 'color:var(--muted)' }, 'Blender models and images upload with your Studio login, no key needed. Once, in Studio: Assistant panel → … → MCP Permissions → allow asset uploads and approve the folder Documents/StudioPilot/exports. An Open Cloud API key below is only a fallback for when Studio\'s built-in MCP is off.'),
       field('API key', key),
       field('Creator user id', user),
       field('Creator group id (optional)', group),

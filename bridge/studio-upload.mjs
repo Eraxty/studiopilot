@@ -8,8 +8,10 @@ import path from 'node:path';
 import { callStudioMcpTool, studioMcpTools } from './studio-mcp.mjs';
 
 /** Folder StudioPilot exports into; approve this one folder in Studio once. */
+// Under Documents: Vinegar's Flatpak sandbox (Studio on Linux) can only see
+// the Documents and Pictures folders.
 export function exportDir() {
-  const dir = process.env.STUDIOPILOT_EXPORT_DIR || path.join(os.homedir(), 'StudioPilot', 'exports');
+  const dir = process.env.STUDIOPILOT_EXPORT_DIR || path.join(os.homedir(), 'Documents', 'StudioPilot', 'exports');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
