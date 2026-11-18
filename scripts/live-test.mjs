@@ -16,6 +16,13 @@ async function step(label, name, args, check = () => true) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const info = await call('get_studio_info', {});
+if (!info.ok) { console.log('Studio not connected:', info.error); process.exit(1); }
+if (info.result.placeId !== 0 && !process.argv.includes('--allow-published')) {
+  // this test creates and deletes things; never run it on a real game by accident
+  console.log(`Refusing to run: "${info.result.place}" is a published place (id ${info.result.placeId}). Open a new blank place (File > New), or pass --allow-published.`);
+  process.exit(1);
+}
 await step('studio info', 'get_studio_info', {}, (r) => r.context === 'edit');
 await step('list workspace', 'list_children', { path: 'Workspace', depth: 2 });
 await step('create part', 'create_instance', { className: 'Part', parent: 'Workspace', name: 'SP_TestPart',
@@ -36,7 +43,7 @@ await step('selection', 'set_selection', { paths: ['Workspace.SP_TestPart'] });
 await step('get selection', 'get_selection', {}, (r) => r[0]?.path === 'Workspace.SP_TestPart');
 await step('run luau', 'run_luau', { code: 'print("hi from edit", 1+1)\nreturn workspace.SP_TestPart.Position, #workspace:GetChildren()' },
   (r) => r.ok && r.output.includes('hi from edit'));
-await step("run luau compile error (expected)", "run_luau", { code: "retrun 1" }, () => true).catch(()=>{});
+await step("run luau compile error (expected)", "run_luau", { code: "retrun 1" }, () => true);
 await step('move/clone', 'move_instance', { path: 'Workspace.SP_TestPart', clone: true, newName: 'SP_Clone' }, (r) => r.path === 'Workspace.SP_Clone');
 await step('output', 'get_output', { limit: 5 });
 
