@@ -32,6 +32,7 @@ const studios = new Map();
 /** command id -> { resolve, reject, timer } */
 const pending = new Map();
 let activePlace = null; // place name the agent picked, or null = auto
+let activeId = null;    // exact studio connection the agent picked (from list_studios)
 
 function studioKey(place, context) { return `${place}::${context}`; }
 
@@ -45,6 +46,10 @@ function liveStudios() {
 
 function pickStudio(context) {
   const live = liveStudios().filter((s) => s.context === context);
+  if (activeId) {
+    const byId = live.find((s) => s.key.split('::')[0] === activeId);
+    if (byId) return byId;
+  }
   if (activePlace) return live.find((s) => s.place === activePlace) || null;
   // Newest poll wins when nothing was chosen explicitly.
   return live.sort((a, b) => b.lastSeen - a.lastSeen)[0] || null;
@@ -112,7 +117,8 @@ async function handleHttp(req, res) {
       const body = await readBody(req);
       const place = String(body.place || 'Unknown');
       const context = ['edit', 'server', 'client'].includes(body.context) ? body.context : 'edit';
-      const key = studioKey(place, context);
+      // newer plugins send a per-load session id; fall back to place name for old ones
+      const key = body.session ? `${body.session}::${context}` : studioKey(place, context);
       let studio = studios.get(key);
       if (!studio) {
         studio = { key, place, context, lastSeen: 0, queue: [], waiter: null };
@@ -153,7 +159,7 @@ async function handleHttp(req, res) {
     // Plugin: goodbye (studio closing / play session ending).
     if (req.method === 'POST' && url.pathname === '/disconnect') {
       const body = await readBody(req);
-      const s = studios.get(studioKey(String(body.place || 'Unknown'), body.context || 'edit'));
+      const s = studios.get(body.session ? `${body.session}::${body.context || 'edit'}` : studioKey(String(body.place || 'Unknown'), body.context || 'edit'));
       if (s) {
         if (s.waiter) { clearTimeout(s.waiter.timer); sendJson(s.waiter.res, 200, { commands: [] }); }
         studios.delete(s.key);
@@ -207,12 +213,13 @@ async function callTool(name, args) {
   if (name === 'list_studios') {
     return {
       activePlace,
-      studios: liveStudios().map((s) => ({ place: s.place, context: s.context, secondsSinceSeen: Math.round((Date.now() - s.lastSeen) / 1000) })),
+      studios: liveStudios().map((s) => ({ id: s.key.split('::')[0], place: s.place, context: s.context, secondsSinceSeen: Math.round((Date.now() - s.lastSeen) / 1000) })),
       builtInMcp: studioMcpSessions(),
     };
   }
   if (name === 'set_active_studio') {
     activePlace = args.place || null;
+    activeId = args.id || null;
     if (args.studioSessionId !== undefined) setPreferredStudioSession(args.studioSessionId);
     return { activePlace };
   }

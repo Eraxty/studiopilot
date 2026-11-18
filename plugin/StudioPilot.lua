@@ -58,6 +58,10 @@ end
 
 local CONTEXT = detectContext()
 
+-- Unique per plugin load, so two open places with the same name ("Place1")
+-- stay separate in the bridge.
+local SESSION = HttpService:GenerateGUID(false)
+
 local function placeName(): string
 	if game.PlaceId ~= 0 then
 		return game.Name .. " #" .. tostring(game.PlaceId)
@@ -1290,6 +1294,7 @@ local function pollLoop(context: string, handle: (any) -> ())
 			place = placeName(),
 			context = context,
 			version = VERSION,
+			session = SESSION,
 		})
 		if ok and res.Success then
 			setConnected(true)

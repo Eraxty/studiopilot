@@ -77,6 +77,12 @@ assert.match(r.result.content[0].text, /"context": "server"/); console.log('serv
 r = await a.rpc('tools/call', { name: 'list_studios', arguments: {} });
 console.log(r.result.content[0].text);
 
+// Two open places with the same name stay separate when the plugin sends a session id
+await Promise.all(['s-one', 's-two'].map((session) => fetch(`http://127.0.0.1:${PORT}/poll`, { method: 'POST', body: JSON.stringify({ place: 'Dup', context: 'edit', session }) }).catch(() => null)));
+r = await a.rpc('tools/call', { name: 'list_studios', arguments: {} });
+const dups = JSON.parse(r.result.content[0].text).studios.filter((s) => s.place === 'Dup');
+assert.equal(dups.length, 2); console.log('same-name places kept apart ok');
+
 // Hub dies -> forwarder takes over
 a.p.kill();
 await new Promise((s) => setTimeout(s, 500));

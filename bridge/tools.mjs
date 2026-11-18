@@ -26,6 +26,7 @@ export const TOOLS = [
       type: 'object',
       properties: {
         place: { type: 'string', description: 'Place name exactly as list_studios shows it.' },
+        id: { type: 'string', description: 'Connection id from list_studios; use it when two open places have the same name.' },
         studioSessionId: { type: 'string', description: 'Built-in MCP session (from list_studios) used by roblox_* tools.' },
       },
       additionalProperties: false,
