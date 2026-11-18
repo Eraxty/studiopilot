@@ -330,8 +330,12 @@ local function isScript(inst: Instance): boolean
 end
 
 local function getSource(s: Instance): string
+	-- Prefer unsaved editor text, but only when the script is open in a tab.
 	local ok, src = pcall(function()
-		return ScriptEditorService:GetEditorSource(s)
+		if ScriptEditorService:FindScriptDocument(s) then
+			return ScriptEditorService:GetEditorSource(s)
+		end
+		return nil
 	end)
 	if ok and type(src) == "string" then
 		return src
@@ -340,14 +344,24 @@ local function getSource(s: Instance): string
 end
 
 local function setSource(s: Instance, source: string)
-	local ok = pcall(function()
-		ScriptEditorService:UpdateSourceAsync(s, function()
-			return source
-		end)
+	-- UpdateSourceAsync is for scripts open in an editor tab. Using it on every
+	-- write (even unopened or new scripts) left Studio in a state that crashed
+	-- the next Play. Only go through the editor when a tab is actually open.
+	local doc
+	pcall(function()
+		doc = ScriptEditorService:FindScriptDocument(s)
 	end)
-	if not ok then
-		(s :: any).Source = source
+	if doc then
+		local ok = pcall(function()
+			ScriptEditorService:UpdateSourceAsync(s, function()
+				return source
+			end)
+		end)
+		if ok then
+			return
+		end
 	end
+	(s :: any).Source = source
 end
 
 local function numbered(source: string, startLine: number?, endLine: number?): (string, number)
@@ -848,40 +862,56 @@ end
 
 ---------------------------------------------------------------- rigs and animation
 
--- Motor6D tree of a rig model: { root, joints = { {name, part0, part1, c0, c1} } }
--- ordered parent-first so consumers can walk it top-down.
+-- Joint tree of a rig model: { root, joints = { {name, part0, part1, c0, c1} } }
+-- ordered parent-first. Classic rigs use Motor6D (Part1 = Part0 * C0 * T * C1^-1);
+-- current Roblox avatars use AnimationConstraint between two attachments, which
+-- is the same math with C0/C1 taken from the attachments' CFrames.
 local function rigJoints(model: Instance)
-	local motors = {}
+	local joints = {}
 	local isChild = {}
-	for _, d in model:GetDescendants() do
-		if d:IsA("Motor6D") and d.Part0 and d.Part1 and d.Part0:IsDescendantOf(model) and d.Part1:IsDescendantOf(model) then
-			table.insert(motors, d)
-			isChild[d.Part1] = true
+	local function add(name, part0, part1, c0, c1)
+		if part0 and part1 and part0:IsA("BasePart") and part1:IsA("BasePart")
+			and part0:IsDescendantOf(model) and part1:IsDescendantOf(model) and not isChild[part1] then
+			table.insert(joints, { name = name, part0 = part0, part1 = part1, c0 = c0, c1 = c1 })
+			isChild[part1] = true
 		end
 	end
-	if #motors == 0 then
-		error(pathOf(model) .. " has no Motor6D joints; it isn't a rig", 0)
+	for _, d in model:GetDescendants() do
+		if d:IsA("Motor6D") then
+			add(d.Name, d.Part0, d.Part1, d.C0, d.C1)
+		end
+	end
+	for _, d in model:GetDescendants() do
+		if d:IsA("AnimationConstraint") then
+			local a0, a1 = (d :: any).Attachment0, (d :: any).Attachment1
+			if a0 and a1 then
+				add(d.Name, a0.Parent, a1.Parent, a0.CFrame, a1.CFrame)
+			end
+		end
+	end
+	if #joints == 0 then
+		error(pathOf(model) .. " has no Motor6D or AnimationConstraint joints; it isn't a rig", 0)
 	end
 	local root = (model :: any).PrimaryPart
 	if not root or isChild[root] then
 		root = nil
-		for _, m in motors do
-			if not isChild[m.Part0] then
-				root = m.Part0
+		for _, j in joints do
+			if not isChild[j.part0] then
+				root = j.part0
 				break
 			end
 		end
 	end
 	local byParent = {}
-	for _, m in motors do
-		byParent[m.Part0] = byParent[m.Part0] or {}
-		table.insert(byParent[m.Part0], m)
+	for _, j in joints do
+		byParent[j.part0] = byParent[j.part0] or {}
+		table.insert(byParent[j.part0], j)
 	end
 	local ordered = {}
 	local function walk(part)
-		for _, m in byParent[part] or {} do
-			table.insert(ordered, m)
-			walk(m.Part1)
+		for _, j in byParent[part] or {} do
+			table.insert(ordered, j)
+			walk(j.part1)
 		end
 	end
 	walk(root)
@@ -902,13 +932,13 @@ function Commands.export_rig(args)
 	end
 	local exported = Commands.export_parts({ paths = { args.path } })
 	local joints = {}
-	for _, m in motors do
+	for _, j in motors do
 		table.insert(joints, {
-			name = m.Name,
-			part0 = m.Part0.Name,
-			part1 = m.Part1.Name,
-			c0 = { m.C0:GetComponents() },
-			c1 = { m.C1:GetComponents() },
+			name = j.name,
+			part0 = j.part0.Name,
+			part1 = j.part1.Name,
+			c0 = { j.c0:GetComponents() },
+			c1 = { j.c1:GetComponents() },
 		})
 	end
 	return {
@@ -927,9 +957,9 @@ function Commands.save_animation(args)
 	local model = resolve(args.rig)
 	local root, motors = rigJoints(model)
 	local children = {}
-	for _, m in motors do
-		children[m.Part0.Name] = children[m.Part0.Name] or {}
-		table.insert(children[m.Part0.Name], m.Part1.Name)
+	for _, j in motors do
+		children[j.part0.Name] = children[j.part0.Name] or {}
+		table.insert(children[j.part0.Name], j.part1.Name)
 	end
 
 	return recorded("save animation " .. args.name, function()
