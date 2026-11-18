@@ -20,6 +20,7 @@ const bridgeServer = path.join(repo, 'bridge', 'server.mjs');
 const pluginPaths = await import(path.join(repo, 'scripts', 'plugin-paths.mjs'));
 
 app.setName('StudioPilot');
+const REPO = 'Eraxty/studiopilot';
 let win = null;
 
 function nodeBinary() {
@@ -197,9 +198,53 @@ function createWindow() {
   });
 }
 
+// Keep the installed Studio plugin in step with this app version, like the
+// bridge it talks to. Only replaces a plugin that is already installed.
+function syncPlugin() {
+  try {
+    const bundled = fs.readFileSync(path.join(repo, 'plugin', 'StudioPilot.lua'));
+    for (const dir of pluginPaths.pluginFolders()) {
+      const target = path.join(dir, 'StudioPilot.lua');
+      if (fs.existsSync(target) && !fs.readFileSync(target).equals(bundled)) {
+        fs.writeFileSync(target, bundled);
+        return true;
+      }
+    }
+  } catch {}
+  return false;
+}
+
+function isNewer(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  }
+  return false;
+}
+
+// Tell the user when a newer release is on GitHub (works once the repo is public).
+async function checkForUpdate() {
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'StudioPilot' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return null;
+    const rel = await r.json();
+    const latest = String(rel.tag_name || '').replace(/^v/, '');
+    return isNewer(latest, app.getVersion()) ? { version: latest, url: rel.html_url } : null;
+  } catch { return null; }
+}
+
 app.whenReady().then(async () => {
   nativeTheme.themeSource = 'dark';
   createWindow();
+  win.webContents.once('did-finish-load', async () => {
+    if (syncPlugin()) send('notice', 'Updated the StudioPilot plugin in Roblox Studio. Open a new place (or restart Studio) to load it.');
+    const update = await checkForUpdate();
+    if (update) send('update', update);
+  });
   svc.ensureHub(bridgeServer, nodeBin).catch(() => {});
   setInterval(async () => send('status', await api.status().catch(() => null)), 4000);
 });

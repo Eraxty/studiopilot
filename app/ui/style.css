@@ -222,3 +222,6 @@ input:focus, select:focus, textarea:focus { outline: 2px solid rgba(79, 140, 255
   #app { grid-template-columns: 220px 1fr auto; }
   #panel { width: 300px; }
 }
+
+.update-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: rgba(79, 140, 255, .12); border-bottom: 1px solid var(--line); font-size: 13px; }
+.update-bar .icon-btn { margin-left: auto; }

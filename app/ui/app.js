@@ -673,6 +673,12 @@
     ];
   }
 
+  const MCP_PRESETS = [
+    { label: 'Obsidian vault / folder', name: 'notes', cmd: 'npx -y @modelcontextprotocol/server-filesystem /path/to/your/vault', help: 'Lets Claude read and write notes in a folder, e.g. your Obsidian vault. Replace the path.' },
+    { label: 'Browser (Playwright)', name: 'playwright', cmd: 'npx -y @playwright/mcp@latest', help: 'Lets Claude open and use web pages.' },
+    { label: 'Memory', name: 'memory', cmd: 'npx -y @modelcontextprotocol/server-memory', help: 'A small knowledge graph Claude can remember things in across chats.' },
+  ];
+
   async function renderMcp() {
     const list = await api('listMcp');
     const name = h('input', { placeholder: 'name' });
@@ -686,6 +692,11 @@
         toast('Added');
         openSettings('mcp');
       }) }, 'Add')),
+      h('div', { class: 'section-title' }, 'Presets'),
+      h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px' }, MCP_PRESETS.map((p) => h('button', {
+        class: 'btn small', title: p.help,
+        onclick: () => { name.value = p.name; cmd.value = p.cmd; cmd.focus(); },
+      }, p.label))),
       ...(list.length ? list : [{ name: '(none)', command: '', status: '' }]).map((s) => h('div', { class: 'list-row' },
         h('div', { class: 'grow' }, h('div', {}, s.name), h('div', { class: 'sub' }, `${s.command} ${s.status ? `· ${s.status}` : ''}`)),
         s.command ? h('button', { class: 'btn small', onclick: async () => { if (await confirmBox(`Remove the MCP server "${s.name}"?`)) { await safe(() => api('removeMcp', { name: s.name })); openSettings('mcp'); } } }, 'Remove') : null)),
@@ -743,6 +754,14 @@
       if (line === null) { S.rojoRunning = false; renderStatus(); return; }
       S.rojoLog.push(line);
       S.rojoLog = S.rojoLog.slice(-300);
+    });
+    window.sp.on('notice', (text) => toast(text));
+    window.sp.on('update', ({ version, url }) => {
+      const bar = h('div', { class: 'update-bar' },
+        `StudioPilot ${version} is out.`,
+        h('button', { class: 'btn small primary', onclick: () => api('openExternal', { url }) }, 'Download'),
+        h('button', { class: 'icon-btn', onclick: () => bar.remove() }, '×'));
+      $('#main').prepend(bar);
     });
     window.sp.on('focus', () => { if (!document.querySelector('.modal-back')) $('#input').focus(); });
   }
