@@ -115,7 +115,11 @@ Claude Code / Codex ──MCP──> bridge ──HTTP──> Studio plugin
 
 ## Uploading models to Roblox
 
-Sending Blender models into Studio needs a free Open Cloud API key with **Assets: Read & Write**. Make one at [create.roblox.com](https://create.roblox.com/dashboard/credentials) and paste it in the app's settings, or put it in `~/.config/studiopilot/config.json`:
+Blender models (and images) upload with your own Studio login through Studio's built-in MCP. No API key.
+
+Roblox makes you approve this once in Studio: **Assistant panel → `...` → MCP Permissions**. Allow asset uploads and add the folder `~/StudioPilot/exports` (on Windows: `%USERPROFILE%\StudioPilot\exports`). That's where StudioPilot puts its exports.
+
+If you'd rather not use Studio's MCP, an Open Cloud API key with **Assets: Read & Write** in `~/.config/studiopilot/config.json` works as a fallback:
 
 ```json
 { "robloxApiKey": "...", "creator": { "userId": "123456" } }

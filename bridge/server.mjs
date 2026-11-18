@@ -7,11 +7,13 @@
 // is taken and forward their tool calls to the hub over HTTP.
 
 import http from 'node:http';
+import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import readline from 'node:readline';
 import { TOOLS } from './tools.mjs';
 import { ensureBlender, blenderCall, blenderRender } from './blender.mjs';
 import { uploadAsset } from './opencloud.mjs';
+import { uploadViaStudio, canUploadViaStudio, exportDir } from './studio-upload.mjs';
 import {
   startStudioMcpHost, studioMcpTools, isStudioMcpTool, callStudioMcpTool, studioMcpSessions, setPreferredStudioSession,
 } from './studio-mcp.mjs';
@@ -266,6 +268,18 @@ async function callTool(name, args) {
   return result;
 }
 
+// Upload with the Studio user's login when Studio's built-in MCP is on; use an
+// Open Cloud API key only if one is configured and the Studio route isn't there.
+async function upload(filePath, name) {
+  if (canUploadViaStudio()) {
+    const r = await dispatch('edit', 'run_luau', { code: 'return game:GetService("StudioService"):GetUserId()' });
+    const userId = r?.returned?.[0];
+    if (!userId) throw new Error('Could not read your Roblox user id from Studio (are you logged in?)');
+    return uploadViaStudio({ filePath, name, userId });
+  }
+  return uploadAsset({ filePath, name });
+}
+
 // Tools the bridge answers itself (Blender, uploads), sometimes with Studio's help.
 async function callLocalTool(name, args) {
   switch (name) {
@@ -286,13 +300,14 @@ async function callLocalTool(name, args) {
       return { ...built, skipped: exported.skipped };
     }
     case 'blender_to_studio': {
-      const exported = await blenderCall('export', { objects: args.objects, name: args.name });
-      const up = await uploadAsset({ filePath: exported.path, name: args.name });
+      const safeName = String(args.name || 'Model').replace(/[^\w.-]+/g, '_');
+      const exported = await blenderCall('export', { objects: args.objects, name: args.name, path: path.join(exportDir(), `${safeName}.fbx`) });
+      const up = await upload(exported.path, args.name);
       const inserted = await dispatch('edit', 'insert_asset', { assetId: up.assetId, parent: args.parent });
       return { ...up, exportedObjects: exported.objects, ...inserted };
     }
     case 'upload_asset': {
-      const up = await uploadAsset({ filePath: args.path, name: args.name });
+      const up = await upload(args.path, args.name);
       if (args.insert && up.assetType === 'Model') {
         return { ...up, ...(await dispatch('edit', 'insert_asset', { assetId: up.assetId, parent: args.parent })) };
       }

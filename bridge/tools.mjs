@@ -395,8 +395,8 @@ export const TOOLS = [
     name: 'blender_to_studio',
     local: true,
     description:
-      'Export Blender objects as FBX, upload them to Roblox through Open Cloud, and insert the result into Studio. ' +
-      'Needs an Open Cloud API key (see upload_asset). The upload goes through Roblox moderation.',
+      'Export Blender objects as FBX, upload them to Roblox, and insert the result into Studio. Uploads use your Studio login ' +
+      "through Studio's built-in MCP (no API key); Roblox moderates every upload.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -412,8 +412,8 @@ export const TOOLS = [
     name: 'upload_asset',
     local: true,
     description:
-      'Upload a local file to Roblox (FBX/OBJ/GLB as a Model, PNG/JPG as a Decal, MP3/OGG as Audio) and return its asset id. ' +
-      'Needs an Open Cloud API key with Assets read+write in ~/.config/studiopilot/config.json.',
+      'Upload a local file to Roblox (FBX/GLB as a Model, PNG/JPG as a Decal, MP3/OGG as Audio) and return its asset id. ' +
+      "Uses your Studio login through Studio's built-in MCP; an Open Cloud API key in ~/.config/studiopilot/config.json is only a fallback.",
     inputSchema: {
       type: 'object',
       properties: {
