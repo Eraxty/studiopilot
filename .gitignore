@@ -4,3 +4,4 @@ app/dist/
 *.log
 scratch-render.png
 __pycache__/
+graphify-out/
