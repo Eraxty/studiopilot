@@ -34,7 +34,7 @@ jobs:
             flags: --linux AppImage
           - os: windows-latest
             flags: --win
-          - os: macos-14
+          - os: macos-latest
             flags: --mac
     runs-on: ${{ matrix.os }}
     defaults:
